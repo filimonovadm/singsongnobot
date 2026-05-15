@@ -1,0 +1,6 @@
+function.zip
+.env
+*.env
+.playwright-mcp/
+__pycache__/
+*.pyc
