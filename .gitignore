@@ -1,3 +1,6 @@
+# opencode local config
+.opencode/
+
 function.zip
 .env
 *.env
