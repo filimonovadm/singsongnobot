@@ -7,5 +7,5 @@ output "invoke_url" {
 }
 
 output "tracks_bucket" {
-  value = yandex_storage_bucket.tracks.bucket
+  value = "singsongnobot-tracks"
 }
