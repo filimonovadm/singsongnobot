@@ -5,6 +5,7 @@ import os
 
 import boto3
 import telebot
+from telebot import types
 from yandex_music import Client
 from yandex_music.exceptions import InvalidBitrateError
 
@@ -19,6 +20,8 @@ S3_SECRET_KEY = os.environ.get('S3_SECRET_KEY')
 
 _ym_client: Client | None = None
 _s3_client = None
+
+MAX_RESULTS = 5
 
 
 def _get_s3():
@@ -52,7 +55,13 @@ def _get_ym_client() -> Client:
     return _ym_client
 
 
-def _search_and_send(bot: telebot.TeleBot, chat_id: int, query: str) -> None:
+def _track_label(track) -> str:
+    artists = ', '.join(a.name for a in (track.artists or []))
+    return f'{artists} — {track.title}' if artists else track.title
+
+
+def _send_track_list(
+        bot: telebot.TeleBot, chat_id: int, query: str) -> None:
     client = _get_ym_client()
 
     result = client.search(query, type_='track')
@@ -60,14 +69,49 @@ def _search_and_send(bot: telebot.TeleBot, chat_id: int, query: str) -> None:
         bot.send_message(chat_id, 'Ничего не нашёл 😔')
         return
 
-    track = result.tracks.results[0]
+    tracks = result.tracks.results[:MAX_RESULTS]
+
+    keyboard = types.InlineKeyboardMarkup()
+    for track in tracks:
+        label = _track_label(track)
+        keyboard.add(types.InlineKeyboardButton(
+            text=label,
+            callback_data=str(track.id),
+        ))
+
+    bot.send_message(
+        chat_id,
+        f'Нашёл {len(tracks)} трека(-ов). Выбери:',
+        reply_markup=keyboard,
+    )
+
+
+def _download_and_send(
+        bot: telebot.TeleBot,
+        chat_id: int,
+        track_id: int,
+        message_id: int) -> None:
+    client = _get_ym_client()
+
+    tracks = client.tracks([track_id])
+    if not tracks:
+        bot.send_message(chat_id, 'Трек не найден.')
+        return
+
+    track = tracks[0]
 
     if not track.available:
-        bot.send_message(chat_id, f'Трек «{track.title}» недоступен в вашем регионе.')
+        bot.send_message(
+            chat_id,
+            f'Трек «{track.title}» недоступен в вашем регионе.',
+        )
         return
 
     artists = ', '.join(a.name for a in (track.artists or []))
-    caption = f'🎵 {artists} — {track.title}' if artists else f'🎵 {track.title}'
+    if artists:
+        caption = f'🎵 {artists} — {track.title}'
+    else:
+        caption = f'🎵 {track.title}'
 
     audio_bytes: bytes | None = None
     try:
@@ -75,25 +119,38 @@ def _search_and_send(bot: telebot.TeleBot, chat_id: int, query: str) -> None:
     except (InvalidBitrateError, Exception):
         infos = track.get_download_info()
         if not infos:
-            bot.send_message(chat_id, f'Не удалось скачать «{track.title}».')
+            bot.send_message(
+                chat_id, f'Не удалось скачать «{track.title}».')
             return
         mp3_infos = [
             i for i in infos
             if i.codec == 'mp3'
         ]
-        info = max(mp3_infos, key=lambda i: i.bitrate_in_kbps) if mp3_infos else infos[0]
+        info = (
+            max(mp3_infos, key=lambda i: i.bitrate_in_kbps)
+            if mp3_infos else infos[0]
+        )
         audio_bytes = info.download_bytes()
 
     if not audio_bytes:
-        bot.send_message(chat_id, f'Не удалось скачать «{track.title}».')
+        bot.send_message(
+            chat_id, f'Не удалось скачать «{track.title}».')
         return
 
-    s3_key = f'{artists} — {track.title}.mp3' if artists else f'{track.title}.mp3'
+    if artists:
+        s3_key = f'{artists} — {track.title}.mp3'
+    else:
+        s3_key = f'{track.title}.mp3'
     _save_to_s3(s3_key, audio_bytes)
 
     duration = track.duration_ms // 1000 if track.duration_ms else None
     performer = artists or None
-    title = track.title
+
+    try:
+        bot.edit_message_reply_markup(
+            chat_id=chat_id, message_id=message_id, reply_markup=None)
+    except Exception:
+        pass
 
     bot.send_audio(
         chat_id,
@@ -101,7 +158,7 @@ def _search_and_send(bot: telebot.TeleBot, chat_id: int, query: str) -> None:
         caption=caption,
         duration=duration,
         performer=performer,
-        title=title,
+        title=track.title,
     )
 
 
@@ -119,6 +176,32 @@ def handler(event: dict, context) -> dict:
 
     bot = telebot.TeleBot(TG_TOKEN, threaded=False)
 
+    # callback_query — пользователь нажал кнопку с треком
+    callback = update_data.get('callback_query')
+    if callback:
+        callback_id = callback.get('id')
+        chat_id = callback['message']['chat']['id']
+        message_id = callback['message']['message_id']
+        track_id_str = callback.get('data', '')
+
+        try:
+            bot.answer_callback_query(callback_id)
+        except Exception:
+            pass
+
+        if track_id_str.isdigit():
+            try:
+                _download_and_send(
+                    bot, chat_id, int(track_id_str), message_id)
+            except Exception as e:
+                logger.exception(
+                    'Error downloading track %s: %s', track_id_str, e)
+                bot.send_message(
+                    chat_id, 'Произошла ошибка. Попробуй ещё раз.')
+
+        return {'statusCode': 200, 'body': 'ok'}
+
+    # message — текстовый запрос
     message = update_data.get('message') or update_data.get('edited_message')
     if not message:
         return {'statusCode': 200, 'body': 'ok'}
@@ -132,7 +215,8 @@ def handler(event: dict, context) -> dict:
     if text.startswith('/start') or text.startswith('/help'):
         bot.send_message(
             chat_id,
-            'Привет! Отправь мне название трека или «Исполнитель — Трек», и я пришлю MP3.',
+            'Привет! Отправь название трека или «Исполнитель — Трек»,'
+            ' и я пришлю список для выбора.',
         )
         return {'statusCode': 200, 'body': 'ok'}
 
@@ -140,9 +224,10 @@ def handler(event: dict, context) -> dict:
         return {'statusCode': 200, 'body': 'ok'}
 
     try:
-        _search_and_send(bot, chat_id, text)
+        _send_track_list(bot, chat_id, text)
     except Exception as e:
         logger.exception('Error while processing query %r: %s', text, e)
-        bot.send_message(chat_id, 'Произошла ошибка. Попробуй ещё раз.')
+        bot.send_message(
+            chat_id, 'Произошла ошибка. Попробуй ещё раз.')
 
     return {'statusCode': 200, 'body': 'ok'}
