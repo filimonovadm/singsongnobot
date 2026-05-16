@@ -8,30 +8,38 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install YC CLI
-        run: |
-          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i /opt/yc -n
-          echo "/opt/yc/bin" >> $GITHUB_PATH
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.9"
 
-      - name: Authenticate
+      - name: Write SA key
         run: |
-          echo '${{ secrets.YC_SA_KEY }}' > sa-key.json
-          yc config set service-account-key sa-key.json
-          yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
+          echo '${{ secrets.TF_SA_KEY }}' > ../sa-key.json
 
-      - name: Package
-        run: zip -j function.zip index.py requirements.txt
+      - name: Terraform Init
+        run: terraform init
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_S3_SECRET_KEY }}
 
-      - name: Deploy
-        run: |
-          yc serverless function version create \
-            --function-id ${{ secrets.YC_FUNCTION_ID }} \
-            --runtime python312 \
-            --entrypoint index.handler \
-            --memory 512m \
-            --execution-timeout 25s \
-            --environment "TG_TOKEN=${{ secrets.TG_TOKEN }},YM_TOKEN=${{ secrets.YM_TOKEN }}" \
-            --source-path function.zip
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_S3_SECRET_KEY }}
+          TF_VAR_folder_id: ${{ secrets.YC_FOLDER_ID }}
+          TF_VAR_tg_token: ${{ secrets.TG_TOKEN }}
+          TF_VAR_ym_token: ${{ secrets.YM_TOKEN }}
+          TF_VAR_sa_key_file: ../sa-key.json
+
+      - name: Cleanup
+        if: always()
+        run: rm -f ../sa-key.json
