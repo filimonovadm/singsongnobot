@@ -1,5 +1,6 @@
-# opencode local config
+# opencode local config and agent cheatsheets
 .opencode/
+AGENTS.md
 
 function.zip
 .env
