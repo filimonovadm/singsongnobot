@@ -13,7 +13,16 @@ variable "ym_token" {
 }
 
 variable "sa_key_file" {
-  type        = string
-  default     = null
-  description = "Path to service account key JSON. Used locally; in CI set via env TF_VAR_sa_key_file or YC_SERVICE_ACCOUNT_KEY_FILE."
+  type    = string
+  default = null
+}
+
+variable "s3_access_key" {
+  type      = string
+  sensitive = true
+}
+
+variable "s3_secret_key" {
+  type      = string
+  sensitive = true
 }

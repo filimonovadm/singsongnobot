@@ -43,25 +43,8 @@ data "archive_file" "function_zip" {
 # Service account (singsongnobot-deploy, id: ajearql5kugafb67p02n) is
 # managed outside Terraform. It already has serverless.functions.admin role.
 
-resource "yandex_storage_bucket" "tracks" {
-  bucket    = "singsongnobot-tracks"
-  folder_id = var.folder_id
-}
-
-resource "yandex_iam_service_account" "storage" {
-  name      = "singsongnobot-storage"
-  folder_id = var.folder_id
-}
-
-resource "yandex_resourcemanager_folder_iam_member" "storage_editor" {
-  folder_id = var.folder_id
-  role      = "storage.editor"
-  member    = "serviceAccount:${yandex_iam_service_account.storage.id}"
-}
-
-resource "yandex_iam_service_account_static_access_key" "storage" {
-  service_account_id = yandex_iam_service_account.storage.id
-}
+# Storage bucket (singsongnobot-tracks) and SA (singsongnobot-storage, id: ajev12nglllf4g6gdlm0)
+# are managed outside Terraform. Static keys are passed via GitHub Secrets.
 
 resource "yandex_function" "bot" {
   name               = "singsongnobot"
@@ -77,11 +60,11 @@ resource "yandex_function" "bot" {
   }
 
   environment = {
-    TG_TOKEN        = var.tg_token
-    YM_TOKEN        = var.ym_token
-    S3_BUCKET       = yandex_storage_bucket.tracks.bucket
-    S3_ACCESS_KEY   = yandex_iam_service_account_static_access_key.storage.access_key
-    S3_SECRET_KEY   = yandex_iam_service_account_static_access_key.storage.secret_key
+    TG_TOKEN      = var.tg_token
+    YM_TOKEN      = var.ym_token
+    S3_BUCKET     = "singsongnobot-tracks"
+    S3_ACCESS_KEY = var.s3_access_key
+    S3_SECRET_KEY = var.s3_secret_key
   }
 }
 
