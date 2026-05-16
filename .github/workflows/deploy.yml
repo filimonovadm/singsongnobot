@@ -1,0 +1,37 @@
+name: Deploy to Yandex Cloud Functions
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install YC CLI
+        run: |
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i /opt/yc -n
+          echo "/opt/yc/bin" >> $GITHUB_PATH
+
+      - name: Authenticate
+        run: |
+          echo '${{ secrets.YC_SA_KEY }}' > sa-key.json
+          yc config set service-account-key sa-key.json
+          yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
+
+      - name: Package
+        run: zip -j function.zip index.py requirements.txt
+
+      - name: Deploy
+        run: |
+          yc serverless function version create \
+            --function-id ${{ secrets.YC_FUNCTION_ID }} \
+            --runtime python312 \
+            --entrypoint index.handler \
+            --memory 512m \
+            --execution-timeout 25s \
+            --environment "TG_TOKEN=${{ secrets.TG_TOKEN }},YM_TOKEN=${{ secrets.YM_TOKEN }}" \
+            --source-path function.zip
