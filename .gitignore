@@ -3,6 +3,7 @@
 AGENTS.md
 
 function.zip
+packages/
 .env
 *.env
 .playwright-mcp/

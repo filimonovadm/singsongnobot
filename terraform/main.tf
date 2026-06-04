@@ -32,11 +32,18 @@ data "archive_file" "function_zip" {
     ".git",
     ".github",
     ".gitignore",
+    ".agent",
+    ".claude",
+    ".opencode",
     ".playwright-mcp",
+    ".DS_Store",
     "terraform",
     "function.zip",
     "avatar.png",
     "README.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "requirements.txt",
   ]
 }
 

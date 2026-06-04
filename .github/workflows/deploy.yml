@@ -15,6 +15,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Python dependencies
+        run: |
+          pip install \
+            --target ../packages \
+            --python-version 3.12 \
+            --platform manylinux2014_x86_64 \
+            --implementation cp \
+            --only-binary=:all: \
+            --upgrade \
+            -r ../requirements.txt \
+          || pip install \
+            --target ../packages \
+            -r ../requirements.txt
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
