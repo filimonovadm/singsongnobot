@@ -196,8 +196,11 @@ def handler(event: dict, context) -> dict:
             except Exception as e:
                 logger.exception(
                     'Error downloading track %s: %s', track_id_str, e)
-                bot.send_message(
-                    chat_id, 'Произошла ошибка. Попробуй ещё раз.')
+                try:
+                    bot.send_message(
+                        chat_id, 'Произошла ошибка. Попробуй ещё раз.')
+                except Exception:
+                    pass
 
         return {'statusCode': 200, 'body': 'ok'}
 
@@ -213,11 +216,14 @@ def handler(event: dict, context) -> dict:
         return {'statusCode': 200, 'body': 'ok'}
 
     if text.startswith('/start') or text.startswith('/help'):
-        bot.send_message(
-            chat_id,
-            'Привет! Отправь название трека или «Исполнитель — Трек»,'
-            ' и я пришлю список для выбора.',
-        )
+        try:
+            bot.send_message(
+                chat_id,
+                'Привет! Отправь название трека или «Исполнитель — Трек»,'
+                ' и я пришлю список для выбора.',
+            )
+        except Exception:
+            pass
         return {'statusCode': 200, 'body': 'ok'}
 
     if text.startswith('/'):
@@ -227,7 +233,10 @@ def handler(event: dict, context) -> dict:
         _send_track_list(bot, chat_id, text)
     except Exception as e:
         logger.exception('Error while processing query %r: %s', text, e)
-        bot.send_message(
-            chat_id, 'Произошла ошибка. Попробуй ещё раз.')
+        try:
+            bot.send_message(
+                chat_id, 'Произошла ошибка. Попробуй ещё раз.')
+        except Exception:
+            pass
 
     return {'statusCode': 200, 'body': 'ok'}
