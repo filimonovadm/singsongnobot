@@ -53,6 +53,14 @@ data "archive_file" "function_zip" {
 # Storage bucket (singsongnobot-tracks) and SA (singsongnobot-storage, id: ajev12nglllf4g6gdlm0)
 # are managed outside Terraform. Static keys are passed via GitHub Secrets.
 
+resource "yandex_storage_object" "function_zip" {
+  bucket     = "singsongnobot-tracks"
+  key        = "function.zip"
+  source     = data.archive_file.function_zip.output_path
+  access_key = var.s3_access_key
+  secret_key = var.s3_secret_key
+}
+
 resource "yandex_function" "bot" {
   name               = "singsongnobot"
   folder_id          = var.folder_id
@@ -62,8 +70,9 @@ resource "yandex_function" "bot" {
   execution_timeout  = "25"
   user_hash          = data.archive_file.function_zip.output_md5
 
-  content {
-    zip_filename = data.archive_file.function_zip.output_path
+  package {
+    bucket_name = yandex_storage_object.function_zip.bucket
+    object_name = yandex_storage_object.function_zip.key
   }
 
   environment = {
