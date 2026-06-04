@@ -191,6 +191,10 @@ def handler(event: dict, context) -> dict:
 
         if track_id_str.isdigit():
             try:
+                bot.send_chat_action(chat_id, 'upload_document')
+            except Exception:
+                pass
+            try:
                 _download_and_send(
                     bot, chat_id, int(track_id_str), message_id)
             except Exception as e:
@@ -228,6 +232,11 @@ def handler(event: dict, context) -> dict:
 
     if text.startswith('/'):
         return {'statusCode': 200, 'body': 'ok'}
+
+    try:
+        bot.send_chat_action(chat_id, 'typing')
+    except Exception:
+        pass
 
     try:
         _send_track_list(bot, chat_id, text)
