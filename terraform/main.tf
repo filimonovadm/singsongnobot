@@ -55,7 +55,7 @@ data "archive_file" "function_zip" {
 
 resource "yandex_storage_object" "function_zip" {
   bucket      = "singsongnobot-tracks"
-  key         = "function.zip"
+  key         = "function-${data.archive_file.function_zip.output_md5}.zip"
   source      = data.archive_file.function_zip.output_path
   source_hash = data.archive_file.function_zip.output_md5
   access_key  = var.s3_access_key
