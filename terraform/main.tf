@@ -54,11 +54,12 @@ data "archive_file" "function_zip" {
 # are managed outside Terraform. Static keys are passed via GitHub Secrets.
 
 resource "yandex_storage_object" "function_zip" {
-  bucket     = "singsongnobot-tracks"
-  key        = "function.zip"
-  source     = data.archive_file.function_zip.output_path
-  access_key = var.s3_access_key
-  secret_key = var.s3_secret_key
+  bucket      = "singsongnobot-tracks"
+  key         = "function.zip"
+  source      = data.archive_file.function_zip.output_path
+  source_hash = data.archive_file.function_zip.output_md5
+  access_key  = var.s3_access_key
+  secret_key  = var.s3_secret_key
 }
 
 resource "yandex_function" "bot" {
@@ -74,6 +75,8 @@ resource "yandex_function" "bot" {
     bucket_name = yandex_storage_object.function_zip.bucket
     object_name = yandex_storage_object.function_zip.key
   }
+
+  depends_on = [yandex_storage_object.function_zip]
 
   environment = {
     TG_TOKEN      = var.tg_token
