@@ -6,6 +6,10 @@ function.zip
 packages/
 .env
 *.env
+webhook.key
+*.key
+scripts/webhook.crt
+scripts/set-webhook.sh
 .playwright-mcp/
 __pycache__/
 *.pyc
